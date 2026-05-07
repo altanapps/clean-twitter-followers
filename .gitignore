@@ -1,6 +1,13 @@
 node_modules/
-data/
-!data/.gitkeep
-.DS_Store
+*/node_modules/
+ts/data/
+py/data/
+py/output/
 *.log
 .env
+.DS_Store
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/

@@ -1,0 +1,28 @@
+{
+  "crypto_majors": [
+    "bitcoin", "btc", "ethereum", "eth", "solana", "sol", "avax",
+    "cardano", "ada", "polkadot", "dot", "binance", "doge"
+  ],
+  "tokens_generic": [
+    "altcoin", "altcoins", "shitcoin", "memecoin", "ico", "ido",
+    "presale", "airdrop", "airdrops", "farm", "farming", "farmer"
+  ],
+  "defi_nft": [
+    "defi", "nft", "nfts", "dao", "yield farming", "liquidity pool",
+    "staking", "perps", "opensea", "blur", "mint", "minting"
+  ],
+  "web3_culture": [
+    "web3", "crypto", "cryptocurrency", "blockchain", "onchain",
+    "wagmi", "ngmi", "lfg", "to the moon", "diamond hands",
+    "paper hands", "hodl", "fud", "rekt", "anon", "degen", "fomo"
+  ],
+  "price_takes": [
+    "pump", "pumping", "dump", "dumping", "moon", "mooning",
+    "bullish", "bearish", "bottom", "top signal", "breakout",
+    "rally", "crash", "leverage", "long", "short", "liquidated"
+  ],
+  "airdrop_farming": [
+    "kaito", "yap", "yapper", "yapping", "leaderboard",
+    "zealy", "galxe", "layer3", "rabbithole", "taskon", "gitcoin"
+  ]
+}
