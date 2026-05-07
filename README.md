@@ -159,7 +159,3 @@ Open an issue or PR if any of these would be useful:
 ## License
 
 MIT. Use it, fork it, break it, fix it.
-
----
-
-Built in a weekend. Not a business.
