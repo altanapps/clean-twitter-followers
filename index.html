@@ -1,0 +1,887 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Clean Twitter Follows</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  :root {
+    --bg: #0b0d10;
+    --panel: #14171a;
+    --panel-2: #1a1e22;
+    --fg: #e7ecef;
+    --muted: #8b949e;
+    --accent: #4aa3df;
+    --accent-2: #1d9bf0;
+    --warn: #d4a017;
+    --danger: #e05a5a;
+    --good: #3fb950;
+    --border: #23272c;
+    --row-hover: #191d21;
+    --row-cursor: #1e2429;
+    --row-selected: #2a1f1f;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); font: 13px/1.45 -apple-system, system-ui, "SF Pro Text", sans-serif; height: 100%; }
+  body { display: flex; flex-direction: column; }
+
+  header {
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+  }
+  .section {
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section:last-child { border-bottom: none; }
+
+  .title-row { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 14px 20px 10px; }
+  h1 { font-size: 15px; font-weight: 600; margin: 0; letter-spacing: -0.2px; }
+  .title-meta { color: var(--muted); font-size: 12px; }
+  .title-meta strong { color: var(--fg); font-weight: 600; }
+  .title-meta .sep { margin: 0 6px; opacity: 0.4; }
+
+  /* Form rows (Goal, AI cut) */
+  .form-row { display: flex; gap: 10px; align-items: center; }
+  .form-row + .form-row { margin-top: 8px; }
+  .form-label {
+    color: var(--muted); font-size: 12px;
+    min-width: 68px; text-align: right;
+    flex-shrink: 0;
+  }
+  input[type="text"], input[type="number"], select {
+    background: var(--panel-2);
+    color: var(--fg);
+    border: 1px solid var(--border);
+    padding: 6px 10px;
+    border-radius: 4px;
+    font: inherit;
+    outline: none;
+    transition: border-color 120ms;
+  }
+  input[type="text"]:focus, input[type="number"]:focus, select:focus { border-color: var(--accent); }
+  .form-row input[type="text"] { flex: 1; min-width: 0; }
+  .ai-meta { color: var(--muted); font-size: 11px; min-width: 100px; text-align: right; }
+  .ai-meta.active { color: var(--good); }
+  .ai-meta.error { color: var(--danger); }
+
+  /* Filters */
+  .filters-title {
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px;
+    margin-bottom: 8px;
+  }
+  .filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 6px 16px;
+    font-size: 12px;
+  }
+  .filter { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); cursor: pointer; user-select: none; }
+  .filter input { accent-color: var(--accent-2); margin: 0; }
+  .filter.active, .filter:has(input:checked) { color: var(--fg); }
+
+  .search-row { display: flex; gap: 8px; margin-top: 8px; }
+  .search-row input { flex: 1; font-size: 12px; }
+
+  /* Action bar */
+  .action-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; flex-wrap: wrap;
+  }
+  .action-left, .action-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .selection-pill {
+    color: var(--muted); font-size: 12px;
+    padding: 0 6px;
+  }
+  .selection-pill strong { color: var(--fg); font-weight: 600; }
+  .inline-control {
+    display: inline-flex; align-items: center; gap: 5px;
+    color: var(--muted); font-size: 12px; user-select: none; cursor: pointer;
+  }
+  .inline-control input[type="number"] {
+    width: 56px; padding: 3px 6px; font-size: 12px; text-align: right;
+  }
+  .inline-control input[type="checkbox"] { accent-color: var(--accent-2); margin: 0; }
+
+  /* Buttons */
+  button {
+    background: var(--panel-2);
+    color: var(--fg);
+    border: 1px solid var(--border);
+    padding: 6px 12px;
+    border-radius: 4px;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    transition: border-color 120ms, background 120ms;
+    white-space: nowrap;
+  }
+  button:hover { border-color: var(--accent); }
+  button.sm { padding: 5px 10px; font-size: 11px; }
+  button.primary { background: var(--accent-2); border-color: var(--accent-2); color: white; font-weight: 500; }
+  button.primary:hover { filter: brightness(1.1); border-color: var(--accent-2); }
+  button.primary:disabled {
+    background: transparent; border-color: var(--border); color: var(--muted);
+    cursor: not-allowed; filter: none; font-weight: 400;
+  }
+  button.danger { background: var(--danger); border-color: var(--danger); color: white; }
+  button.danger:hover { filter: brightness(1.1); border-color: var(--danger); }
+  a#export {
+    color: var(--muted); font-size: 11px;
+    text-decoration: none; border-bottom: 1px dotted var(--muted);
+  }
+  a#export:hover { color: var(--accent); border-bottom-color: var(--accent); }
+
+  #status-bar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 20px;
+    border-top: 1px solid var(--border);
+    background: var(--panel);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  #status-bar .spacer { flex: 1; }
+  #status-bar .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  #status-bar .dot.idle { background: var(--muted); }
+  #status-bar .dot.running { background: var(--good); box-shadow: 0 0 6px var(--good); animation: pulse 1.6s ease-in-out infinite; }
+  #status-bar .dot.error { background: var(--danger); }
+  @keyframes pulse { 0%,100% { opacity: 0.6; } 50% { opacity: 1; } }
+  #status-text strong { color: var(--fg); }
+  #status-meta { color: var(--muted); }
+  .selected-pill { color: var(--muted); font-size: 12px; }
+  .selected-pill strong { color: var(--fg); }
+
+  main { flex: 1; overflow: auto; }
+  table { width: 100%; border-collapse: separate; border-spacing: 0; }
+  thead th {
+    position: sticky; top: 0; z-index: 2;
+    background: var(--panel); color: var(--muted);
+    text-align: left; font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px;
+    padding: 10px 10px; border-bottom: 1px solid var(--border);
+    cursor: pointer; user-select: none;
+  }
+  thead th.sorted { color: var(--fg); }
+  thead th .arr { opacity: 0.5; margin-left: 4px; font-size: 10px; }
+  tbody tr { border-bottom: 1px solid var(--border); }
+  tbody tr:hover { background: var(--row-hover); }
+  tbody tr.cursor { background: var(--row-cursor); box-shadow: inset 2px 0 0 var(--accent); }
+  tbody tr.selected { background: var(--row-selected); }
+  tbody tr.cursor.selected { background: #33252a; }
+  td { padding: 8px 10px; vertical-align: middle; }
+  td.check { width: 32px; text-align: center; }
+  td.check input { accent-color: var(--danger); cursor: pointer; transform: scale(1.1); }
+  td.avatar { width: 36px; }
+  td.avatar img { width: 28px; height: 28px; border-radius: 50%; display: block; background: var(--panel-2); }
+  td.handle { min-width: 140px; }
+  td.handle a { color: var(--fg); text-decoration: none; font-weight: 500; }
+  td.handle a:hover { color: var(--accent); text-decoration: underline; }
+  td.handle .name { color: var(--muted); font-size: 11px; margin-left: 6px; }
+  td.bio { max-width: 440px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  td.num { font-variant-numeric: tabular-nums; text-align: right; color: var(--muted); }
+  td.num.warn { color: var(--warn); }
+  td.num.danger { color: var(--danger); }
+  td.mutual { text-align: center; }
+  .tag { display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: 10px; letter-spacing: 0.3px; text-transform: uppercase; }
+  .tag.mut { background: rgba(63,185,80,0.15); color: var(--good); }
+  .tag.dash { color: var(--muted); }
+  .tag.cut { background: rgba(224,90,90,0.18); color: var(--danger); cursor: help; }
+  td.ai { text-align: center; min-width: 72px; }
+  .empty { padding: 40px; text-align: center; color: var(--muted); }
+  footer {
+    padding: 8px 20px;
+    border-top: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--muted);
+    font-size: 11px;
+    display: flex; gap: 18px; flex-wrap: wrap;
+  }
+  kbd {
+    display: inline-block; padding: 1px 5px; font-size: 10px; font-family: ui-monospace, monospace;
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 3px; color: var(--fg);
+  }
+</style>
+</head>
+<body>
+  <header>
+    <div class="title-row">
+      <h1>Clean Twitter Follows</h1>
+      <div class="title-meta">
+        <strong id="visible-count">0</strong> shown
+        <span class="sep">·</span>
+        <span id="total-count">0</span> total
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="form-row">
+        <label class="form-label" for="goal">Goal</label>
+        <input id="goal" type="text" placeholder="What are you trying to get out of Twitter? (saved locally)" />
+      </div>
+      <div class="form-row">
+        <label class="form-label" for="ai-prompt">🤖 AI cut</label>
+        <input id="ai-prompt" type="text" placeholder="Describe who to cut in plain English (e.g. 'crypto bros, growth threads, dropshipping grifters')" />
+        <button id="analyze">Analyze</button>
+        <button id="stop-analyze" class="danger" style="display:none">Stop</button>
+        <span id="ai-status" class="ai-meta"></span>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="filters-title">
+        <span>Filters</span>
+      </div>
+      <div class="filter-grid">
+        <label class="filter"><input type="checkbox" id="f-notmutual" /> Not mutual</label>
+        <label class="filter"><input type="checkbox" id="f-lowstatus" /> Dead (&lt;10 tweets)</label>
+        <label class="filter"><input type="checkbox" id="f-bottom500" /> Oldest 500</label>
+        <label class="filter"><input type="checkbox" id="f-lowengage" /> Low activity (&lt;100)</label>
+        <label class="filter"><input type="checkbox" id="f-noavatar" /> No avatar</label>
+        <label class="filter"><input type="checkbox" id="f-nobio" /> Empty bio</label>
+        <label class="filter"><input type="checkbox" id="f-recent" /> Recently followed (50)</label>
+        <label class="filter"><input type="checkbox" id="f-bluespam" title="Paid X Premium, not following you back"/> Paid blue, not mutual</label>
+        <label class="filter"><input type="checkbox" id="f-botratio" title="Follows &gt;10× more than follows back"/> Bot ratio</label>
+        <label class="filter"><input type="checkbox" id="f-celeb" title="&gt;100K followers, not mutual"/> One-way celeb</label>
+        <label class="filter" id="f-aicut-wrap" style="display:none"><input type="checkbox" id="f-aicut" title="Only show AI-flagged accounts"/> 🤖 AI-flagged</label>
+      </div>
+      <div class="search-row">
+        <input type="text" id="search" placeholder="Search handle, name, or bio…" />
+        <input type="text" id="exclude" placeholder="Exclude bio keywords, comma-separated…" title="Hides any account whose bio contains any of these terms" />
+      </div>
+    </div>
+
+    <div class="section action-bar">
+      <div class="action-left">
+        <span class="selection-pill"><strong id="selected-count">0</strong> selected</span>
+        <button id="select-all" class="sm">Select filtered</button>
+        <button id="clear" class="sm">Clear</button>
+      </div>
+      <div class="action-right">
+        <label class="inline-control" title="How fast to unfollow. Soft daily cap applies at 1000/day.">
+          pace <input type="number" id="per-hour" value="200" min="30" max="600" step="10" />/hr
+        </label>
+        <label class="inline-control" title="Simulate without actually unfollowing"><input type="checkbox" id="dry-run" /> dry run</label>
+        <a id="export" href="#" title="Download the current selection as cuts.json">export json</a>
+        <button id="start" class="primary" disabled>Unfollow 0 selected</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <table>
+      <thead>
+        <tr>
+          <th class="check"></th>
+          <th></th>
+          <th data-sort="handle">Handle</th>
+          <th data-sort="bio">Bio</th>
+          <th data-sort="mutual">Mutual</th>
+          <th data-sort="statuses">Tweets</th>
+          <th data-sort="followers">Followers</th>
+          <th data-sort="position" class="sorted">Follow order<span class="arr">↑</span></th>
+          <th data-sort="aicut">AI</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div class="empty" id="empty" style="display:none">
+      No <code>data/follows.json</code> found yet. Run <code>npm run sweep</code> first, then refresh.
+    </div>
+  </main>
+
+  <div id="status-bar">
+    <span id="status-dot" class="dot idle"></span>
+    <span id="status-text">checking job status…</span>
+    <button id="stop" class="danger" style="display:none">Stop</button>
+    <span class="spacer"></span>
+    <span id="status-meta"></span>
+  </div>
+
+  <footer>
+    <span><kbd>j</kbd>/<kbd>k</kbd> navigate</span>
+    <span><kbd>x</kbd>/<kbd>space</kbd> toggle</span>
+    <span><kbd>a</kbd> select all filtered</span>
+    <span><kbd>A</kbd> deselect all</span>
+    <span><kbd>/</kbd> search</span>
+    <span><kbd>enter</kbd> open profile</span>
+  </footer>
+
+<script type="module">
+  const els = {
+    rows: document.getElementById('rows'),
+    total: document.getElementById('total-count'),
+    visible: document.getElementById('visible-count'),
+    selected: document.getElementById('selected-count'),
+    search: document.getElementById('search'),
+    empty: document.getElementById('empty'),
+    goal: document.getElementById('goal'),
+    filters: {
+      notmutual: document.getElementById('f-notmutual'),
+      lowstatus: document.getElementById('f-lowstatus'),
+      bottom500: document.getElementById('f-bottom500'),
+      lowengage: document.getElementById('f-lowengage'),
+      noavatar: document.getElementById('f-noavatar'),
+      nobio: document.getElementById('f-nobio'),
+      recent: document.getElementById('f-recent'),
+      bluespam: document.getElementById('f-bluespam'),
+      botratio: document.getElementById('f-botratio'),
+      celeb: document.getElementById('f-celeb'),
+      aicut: document.getElementById('f-aicut'),
+    },
+    exclude: document.getElementById('exclude'),
+    aiPrompt: document.getElementById('ai-prompt'),
+    aiStatus: document.getElementById('ai-status'),
+    analyze: document.getElementById('analyze'),
+    stopAnalyze: document.getElementById('stop-analyze'),
+    btns: {
+      selectAll: document.getElementById('select-all'),
+      clear: document.getElementById('clear'),
+      export: document.getElementById('export'),
+      start: document.getElementById('start'),
+      stop: document.getElementById('stop'),
+    },
+    dryRun: document.getElementById('dry-run'),
+    perHour: document.getElementById('per-hour'),
+    statusDot: document.getElementById('status-dot'),
+    statusText: document.getElementById('status-text'),
+    statusMeta: document.getElementById('status-meta'),
+  };
+
+  let follows = [];
+  let view = [];
+  const selected = new Set(JSON.parse(localStorage.getItem('cuts') ?? '[]'));
+  const processed = new Set();
+  const aiSuggestions = new Map(); // id -> {cut, reason}
+  let currentHash = null;
+  let cursor = 0;
+  let sortKey = 'position';
+  let sortDir = 1;
+
+  els.goal.value = localStorage.getItem('goal') ?? '';
+  els.goal.addEventListener('input', () => localStorage.setItem('goal', els.goal.value));
+
+  async function loadInitial() {
+    try {
+      const [followsRes, statusRes] = await Promise.all([
+        fetch('./data/follows.json', { cache: 'no-store' }),
+        fetch('/api/status', { cache: 'no-store' }),
+      ]);
+      if (!followsRes.ok) throw new Error('no follows.json');
+      follows = await followsRes.json();
+      if (statusRes.ok) {
+        const s = await statusRes.json();
+        for (const id of s.done ?? []) processed.add(id);
+        for (const id of [...selected]) if (processed.has(id)) selected.delete(id);
+        persistSelection();
+      }
+      els.total.textContent = follows.length;
+      render();
+    } catch {
+      els.empty.style.display = 'block';
+      els.total.textContent = '0';
+    }
+  }
+
+  function passes(f) {
+    if (processed.has(f.id)) return false;
+    if (els.filters.notmutual.checked && f.mutual) return false;
+    if (els.filters.lowstatus.checked && f.statuses >= 10) return false;
+    if (els.filters.lowengage.checked && f.statuses >= 100) return false;
+    if (els.filters.bottom500.checked) {
+      const cutoff = Math.max(0, follows.length - 500);
+      if (f.position < cutoff) return false;
+    }
+    if (els.filters.noavatar.checked && f.avatar) return false;
+    if (els.filters.nobio.checked && f.bio) return false;
+    if (els.filters.recent.checked && f.position >= 50) return false;
+    if (els.filters.bluespam.checked && (!f.verified || f.mutual)) return false;
+    if (els.filters.botratio.checked) {
+      const ratio = f.following / Math.max(f.followers, 1);
+      if (!(ratio > 10)) return false;
+    }
+    if (els.filters.celeb.checked && !(f.followers > 100000 && !f.mutual)) return false;
+    if (els.filters.aicut.checked) {
+      const s = aiSuggestions.get(f.id);
+      if (!s || !s.cut) return false;
+    }
+
+    const q = els.search.value.trim().toLowerCase();
+    if (q && !(f.handle.toLowerCase().includes(q) || f.bio.toLowerCase().includes(q) || f.name.toLowerCase().includes(q))) return false;
+
+    const excl = els.exclude.value.toLowerCase().split(',').map((s) => s.trim()).filter(Boolean);
+    if (excl.length) {
+      const bio = f.bio.toLowerCase();
+      if (excl.some((t) => bio.includes(t))) return false;
+    }
+    return true;
+  }
+
+  function render() {
+    const cmp = (a, b) => {
+      if (sortKey === 'aicut') {
+        const sa = aiSuggestions.get(a.id), sb = aiSuggestions.get(b.id);
+        const va = sa ? (sa.cut ? 2 : 1) : 0;
+        const vb = sb ? (sb.cut ? 2 : 1) : 0;
+        return (va - vb) * sortDir;
+      }
+      const av = a[sortKey], bv = b[sortKey];
+      if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * sortDir;
+      if (typeof av === 'boolean' && typeof bv === 'boolean') return (Number(av) - Number(bv)) * sortDir;
+      return String(av ?? '').localeCompare(String(bv ?? '')) * sortDir;
+    };
+    view = follows.filter(passes).sort(cmp);
+    els.visible.textContent = view.length;
+    els.selected.textContent = selected.size;
+    cursor = Math.max(0, Math.min(cursor, view.length - 1));
+
+    for (const th of document.querySelectorAll('thead th[data-sort]')) {
+      const isActive = th.dataset.sort === sortKey;
+      th.classList.toggle('sorted', isActive);
+      const arr = th.querySelector('.arr');
+      if (isActive) {
+        if (!arr) {
+          const s = document.createElement('span');
+          s.className = 'arr';
+          s.textContent = sortDir === 1 ? '↑' : '↓';
+          th.appendChild(s);
+        } else {
+          arr.textContent = sortDir === 1 ? '↑' : '↓';
+        }
+      } else if (arr) {
+        arr.remove();
+      }
+    }
+
+    const frag = document.createDocumentFragment();
+    view.forEach((f, i) => {
+      const tr = document.createElement('tr');
+      tr.dataset.id = f.id;
+      if (i === cursor) tr.classList.add('cursor');
+      if (selected.has(f.id)) tr.classList.add('selected');
+
+      const check = document.createElement('td');
+      check.className = 'check';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = selected.has(f.id);
+      cb.addEventListener('change', (e) => {
+        e.stopPropagation();
+        toggle(f.id);
+      });
+      check.appendChild(cb);
+      tr.appendChild(check);
+
+      const av = document.createElement('td');
+      av.className = 'avatar';
+      if (f.avatar) {
+        const img = document.createElement('img');
+        img.src = f.avatar;
+        img.loading = 'lazy';
+        img.referrerPolicy = 'no-referrer';
+        av.appendChild(img);
+      }
+      tr.appendChild(av);
+
+      const handle = document.createElement('td');
+      handle.className = 'handle';
+      const a = document.createElement('a');
+      a.href = `https://x.com/${f.handle}`;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.textContent = '@' + f.handle;
+      handle.appendChild(a);
+      const nm = document.createElement('span');
+      nm.className = 'name';
+      nm.textContent = f.name;
+      handle.appendChild(nm);
+      tr.appendChild(handle);
+
+      const bio = document.createElement('td');
+      bio.className = 'bio';
+      bio.textContent = f.bio;
+      bio.title = f.bio;
+      tr.appendChild(bio);
+
+      const mut = document.createElement('td');
+      mut.className = 'mutual';
+      mut.innerHTML = f.mutual ? '<span class="tag mut">mutual</span>' : '<span class="tag dash">—</span>';
+      tr.appendChild(mut);
+
+      const st = document.createElement('td');
+      st.className = 'num';
+      if (f.statuses < 10) st.classList.add('danger');
+      else if (f.statuses < 100) st.classList.add('warn');
+      st.textContent = formatNum(f.statuses);
+      tr.appendChild(st);
+
+      const fo = document.createElement('td');
+      fo.className = 'num';
+      fo.textContent = formatNum(f.followers);
+      tr.appendChild(fo);
+
+      const pos = document.createElement('td');
+      pos.className = 'num';
+      pos.textContent = f.position + 1;
+      tr.appendChild(pos);
+
+      const ai = document.createElement('td');
+      ai.className = 'ai';
+      const s = aiSuggestions.get(f.id);
+      if (s) {
+        if (s.cut) {
+          ai.innerHTML = '<span class="tag cut">🤖 cut</span>';
+          ai.title = s.reason;
+        } else {
+          ai.innerHTML = '<span class="tag dash" title="AI says keep">keep</span>';
+        }
+      } else {
+        ai.innerHTML = '<span class="tag dash">—</span>';
+      }
+      tr.appendChild(ai);
+
+      tr.addEventListener('click', (e) => {
+        if (e.target.tagName === 'A' || e.target.tagName === 'INPUT') return;
+        const idx = view.findIndex((x) => x.id === f.id);
+        setCursor(idx);
+      });
+
+      frag.appendChild(tr);
+    });
+
+    const mainEl = document.querySelector('main');
+    const scrollTop = mainEl ? mainEl.scrollTop : 0;
+    els.rows.replaceChildren(frag);
+    if (mainEl) mainEl.scrollTop = scrollTop;
+  }
+
+  function formatNum(n) {
+    if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+    if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
+    return String(n);
+  }
+
+  function persistSelection() {
+    localStorage.setItem('cuts', JSON.stringify([...selected]));
+    els.selected.textContent = selected.size;
+    updateStartButton();
+  }
+
+  function toggle(id) {
+    if (selected.has(id)) selected.delete(id);
+    else selected.add(id);
+    persistSelection();
+    // surgical DOM update — do NOT call render() (rebuilds 1800 rows)
+    const tr = els.rows.querySelector(`tr[data-id="${id}"]`);
+    if (tr) {
+      const isSel = selected.has(id);
+      tr.classList.toggle('selected', isSel);
+      const cb = tr.querySelector('input[type="checkbox"]');
+      if (cb) cb.checked = isSel;
+    }
+  }
+
+  function selectAllFiltered() {
+    for (const f of view) selected.add(f.id);
+    persistSelection();
+    // apply class to currently-rendered rows only
+    for (const tr of els.rows.children) {
+      if (selected.has(tr.dataset.id)) {
+        tr.classList.add('selected');
+        const cb = tr.querySelector('input[type="checkbox"]');
+        if (cb) cb.checked = true;
+      }
+    }
+  }
+
+  function clearAll() {
+    selected.clear();
+    persistSelection();
+    for (const tr of els.rows.children) {
+      tr.classList.remove('selected');
+      const cb = tr.querySelector('input[type="checkbox"]');
+      if (cb) cb.checked = false;
+    }
+  }
+
+  function setCursor(newIdx) {
+    if (newIdx < 0 || newIdx >= view.length || newIdx === cursor) return;
+    const rows = els.rows.children;
+    if (rows[cursor]) rows[cursor].classList.remove('cursor');
+    cursor = newIdx;
+    const target = rows[cursor];
+    if (target) {
+      target.classList.add('cursor');
+      target.scrollIntoView({ block: 'nearest' });
+    }
+  }
+
+  function buildCuts() {
+    return follows
+      .filter((f) => selected.has(f.id))
+      .map((f) => ({ id: f.id, handle: f.handle, name: f.name }));
+  }
+
+  function downloadCuts(e) {
+    if (e) e.preventDefault();
+    const blob = new Blob([JSON.stringify(buildCuts(), null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'cuts.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  let jobRunning = false;
+
+  function updateStartButton() {
+    const n = selected.size;
+    els.btns.start.textContent = jobRunning ? 'Unfollow job running…' : `Unfollow ${n} selected`;
+    els.btns.start.disabled = jobRunning || n === 0;
+  }
+
+  let toastTimer;
+  function flashToast(msg) {
+    let t = document.getElementById('toast');
+    if (!t) {
+      t = document.createElement('div');
+      t.id = 'toast';
+      t.style.cssText = 'position:fixed;bottom:60px;right:20px;background:var(--panel);border:1px solid var(--good);color:var(--fg);padding:10px 14px;border-radius:6px;font-size:13px;z-index:100;box-shadow:0 4px 20px rgba(0,0,0,0.4);opacity:0;transition:opacity 200ms';
+      document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    requestAnimationFrame(() => { t.style.opacity = '1'; });
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.style.opacity = '0'; }, 6000);
+  }
+
+  function humanDuration(count, perHour) {
+    const activeHours = count / perHour;
+    const effectivePerDay = Math.min(count, 1000);
+    const days = Math.ceil(count / effectivePerDay);
+    if (activeHours < 1) return `${Math.round(activeHours * 60)} min active`;
+    if (days === 1) return `${activeHours.toFixed(1)} hr active (within a day, hits daily cap at 1000)`;
+    return `~${days} days (daily cap is 1000/day — splits across days)`;
+  }
+
+  async function startJob() {
+    const n = selected.size;
+    if (!n || jobRunning) return;
+    const dry = els.dryRun.checked;
+    const perHour = Math.max(30, Math.min(600, Number(els.perHour.value) || 200));
+    const msg = dry
+      ? `Dry run for ${n} accounts at ${perHour}/hr? (no actual unfollows)`
+      : `Unfollow ${n} accounts at ${perHour}/hr? Runs in background. ${humanDuration(n, perHour)}.`;
+    if (!confirm(msg)) return;
+
+    const saveRes = await fetch('/api/cuts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(buildCuts()),
+    });
+    if (!saveRes.ok) { alert('Failed to save cuts: ' + (await saveRes.text())); return; }
+
+    const startRes = await fetch('/api/unfollow/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dryRun: dry, perHour }),
+    });
+    const body = await startRes.json().catch(() => ({}));
+    if (!startRes.ok) { alert('Failed to start: ' + (body.error ?? startRes.status)); return; }
+    pollStatus();
+  }
+
+  async function stopJob() {
+    if (!confirm('Stop the unfollow job? Progress is preserved — you can resume later.')) return;
+    els.btns.stop.disabled = true;
+    els.btns.stop.textContent = 'Stopping…';
+    try {
+      const res = await fetch('/api/unfollow/stop', { method: 'POST' });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) alert('Failed to stop: ' + (body.error ?? res.status));
+      else if (body.forced) console.log('Stop required SIGKILL escalation');
+    } finally {
+      els.btns.stop.disabled = false;
+      els.btns.stop.textContent = 'Stop';
+      pollStatus();
+    }
+  }
+
+  let lastWasRunning = false;
+  async function pollStatus() {
+    try {
+      const res = await fetch('/api/status', { cache: 'no-store' });
+      const s = await res.json();
+      jobRunning = Boolean(s.running);
+      if (lastWasRunning && !jobRunning && s.total === 0) {
+        flashToast(`✓ Unfollow run complete — ${s.done.length} total unfollowed on this account.`);
+      }
+      lastWasRunning = jobRunning;
+
+      const newDone = s.done ?? [];
+      let changed = false;
+      if (newDone.length !== processed.size) changed = true;
+      processed.clear();
+      for (const id of newDone) processed.add(id);
+      for (const id of newDone) {
+        if (selected.has(id)) { selected.delete(id); changed = true; }
+      }
+      if (changed) { persistSelection(); render(); }
+      els.statusDot.className = 'dot ' + (s.running ? 'running' : (s.failed > 0 ? 'error' : 'idle'));
+      if (s.running) {
+        els.statusText.innerHTML = `Unfollowing… <strong>${s.processed}</strong> / ${s.total} processed`
+          + (s.failed ? ` · <span style="color:var(--danger)">${s.failed} failed</span>` : '');
+        els.btns.stop.style.display = 'inline-block';
+      } else if (s.total > 0 && s.processed > 0) {
+        els.statusText.innerHTML = `Last run: <strong>${s.processed}</strong> / ${s.total} processed`
+          + (s.failed ? ` · <span style="color:var(--danger)">${s.failed} failed</span>` : '');
+        els.btns.stop.style.display = 'none';
+      } else {
+        els.statusText.textContent = 'No unfollow job running.';
+        els.btns.stop.style.display = 'none';
+      }
+      els.statusMeta.textContent = s.updatedAt ? `updated ${new Date(s.updatedAt).toLocaleTimeString()}` : '';
+      updateStartButton();
+    } catch (err) {
+      els.statusText.textContent = 'Status API unreachable — is the server running?';
+      els.statusDot.className = 'dot error';
+    }
+  }
+
+  for (const cb of Object.values(els.filters)) cb.addEventListener('change', render);
+  els.search.addEventListener('input', render);
+  els.exclude.value = localStorage.getItem('exclude') ?? '';
+  els.exclude.addEventListener('input', () => { localStorage.setItem('exclude', els.exclude.value); render(); });
+  els.aiPrompt.value = localStorage.getItem('aiPrompt') ?? '';
+  els.aiPrompt.addEventListener('input', () => localStorage.setItem('aiPrompt', els.aiPrompt.value));
+
+  async function hashCurrent() {
+    const res = await fetch('/api/analyze/hash', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ goal: els.goal.value, prompt: els.aiPrompt.value }),
+    });
+    const b = await res.json();
+    return b.hash;
+  }
+
+  async function loadSuggestions(hash) {
+    if (!hash) return;
+    const res = await fetch('/api/suggestions?hash=' + encodeURIComponent(hash), { cache: 'no-store' });
+    if (!res.ok) return;
+    const data = await res.json();
+    aiSuggestions.clear();
+    for (const [id, s] of Object.entries(data)) aiSuggestions.set(id, s);
+    currentHash = hash;
+    updateAiVisibility();
+    render();
+  }
+
+  function updateAiVisibility() {
+    const wrap = document.getElementById('f-aicut-wrap');
+    if (wrap) wrap.style.display = aiSuggestions.size > 0 ? '' : 'none';
+  }
+
+  async function startAnalyze() {
+    const prompt = els.aiPrompt.value.trim();
+    if (!prompt) { alert('Type a description of who to cut first.'); return; }
+    const nEstimate = follows.length - processed.size;
+    if (!confirm(`Run AI analysis on ~${nEstimate} accounts? (~${Math.ceil(nEstimate / 30 * 3)}s, uses your Anthropic API key)`)) return;
+    try {
+      const res = await fetch('/api/analyze/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ goal: els.goal.value, prompt }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) { alert('Analyze failed: ' + (body.error ?? res.status)); return; }
+      currentHash = body.hash;
+      pollAnalyze();
+    } catch (err) { alert('Analyze request failed: ' + err); }
+  }
+
+  async function stopAnalyze() {
+    await fetch('/api/analyze/stop', { method: 'POST' });
+    pollAnalyze();
+  }
+
+  async function pollAnalyze() {
+    try {
+      const res = await fetch('/api/analyze/status', { cache: 'no-store' });
+      const s = await res.json();
+      if (s.running) {
+        els.aiStatus.className = 'ai-meta active';
+        els.aiStatus.textContent = `Analyzing ${s.analyzed}/${s.total}…`;
+        els.analyze.disabled = true;
+        els.stopAnalyze.style.display = 'inline-block';
+      } else {
+        els.analyze.disabled = false;
+        els.stopAnalyze.style.display = 'none';
+        if (s.error) {
+          els.aiStatus.className = 'ai-meta error';
+          els.aiStatus.textContent = s.error.slice(0, 120);
+        } else if (s.hash && s.total > 0) {
+          els.aiStatus.className = 'ai-meta';
+          els.aiStatus.textContent = `✓ Analyzed ${s.analyzed} accounts`;
+        } else {
+          els.aiStatus.className = 'ai-meta';
+          els.aiStatus.textContent = '';
+        }
+      }
+      // always refresh suggestions if hash known
+      if (s.hash) await loadSuggestions(s.hash);
+    } catch (err) { /* silent */ }
+  }
+
+  els.analyze.addEventListener('click', startAnalyze);
+  els.stopAnalyze.addEventListener('click', stopAnalyze);
+  els.btns.selectAll.addEventListener('click', selectAllFiltered);
+  els.btns.clear.addEventListener('click', clearAll);
+  els.btns.export.addEventListener('click', downloadCuts);
+  els.btns.start.addEventListener('click', startJob);
+  els.btns.stop.addEventListener('click', stopJob);
+
+  for (const th of document.querySelectorAll('thead th[data-sort]')) {
+    th.addEventListener('click', () => {
+      const k = th.dataset.sort;
+      if (sortKey === k) sortDir *= -1;
+      else { sortKey = k; sortDir = 1; }
+      render();
+    });
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' && e.key !== 'Escape') return;
+    if (e.key === 'j') setCursor(cursor + 1);
+    else if (e.key === 'k') setCursor(cursor - 1);
+    else if (e.key === 'x' || e.key === ' ') {
+      if (view[cursor]) { toggle(view[cursor].id); e.preventDefault(); }
+    }
+    else if (e.key === 'a') selectAllFiltered();
+    else if (e.key === 'A') clearAll();
+    else if (e.key === '/') { els.search.focus(); e.preventDefault(); }
+    else if (e.key === 'e') downloadCuts();
+    else if (e.key === 'Enter') {
+      if (view[cursor]) window.open(`https://x.com/${view[cursor].handle}`, '_blank');
+    } else if (e.key === 'Escape') {
+      if (document.activeElement === els.search) { els.search.blur(); }
+    }
+  });
+
+  loadInitial().then(async () => {
+    updateStartButton();
+    pollStatus();
+    setInterval(pollStatus, 3000);
+    // Load any prior AI analysis for current prompt
+    if (els.aiPrompt.value.trim()) {
+      const hash = await hashCurrent();
+      await loadSuggestions(hash);
+    }
+    pollAnalyze();
+    setInterval(pollAnalyze, 4000);
+  });
+</script>
+</body>
+</html>
